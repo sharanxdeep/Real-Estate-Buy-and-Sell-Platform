@@ -24,6 +24,10 @@ router.post("/signup", async (req, res, next) => {
 
     res.status(201).json({ message: "User created successfully" });
   } catch (error) {
+    if (error.code === "P2002") {
+      error.statusCode = 400;
+      error.message = "Email already exists";
+    }
     next(error);
   }
 });
