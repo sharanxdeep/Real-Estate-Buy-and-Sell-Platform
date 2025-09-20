@@ -1,6 +1,7 @@
 import express, { json, response } from "express";
 import { createRequire } from "module";
 import { PrismaClient } from "@prisma/client";
+import { error } from "console";
 
 const require = createRequire(import.meta.url);
 const bcrypt = require("bcryptjs");
@@ -31,5 +32,25 @@ router.post("/signup", async (req, res, next) => {
     next(error);
   }
 });
+
+router.post("/login",async (req,res)=>{
+  const {email, password} = req.body;
+  try {
+    const user = await prisma.user.findUnique({where:{ email } });
+    if(!user){
+      return res.status(400).json({success:false, message:"User not found"});
+    }
+
+    const validPassword = await bcrypt.compare(password, user.password);
+    if(!validPassword){
+      return res.status(400).json({success:false, message:"Incorrect password"});
+    }
+
+    res.json({success:true, message:"Login successfull"});
+
+  } catch (error) {
+    res.status(500).json({success:false, message:"Something went wrong"});
+  }
+})
 
 export default router;
