@@ -8,25 +8,24 @@ const bcrypt = require("bcryptjs");
 const router = express.Router();
 const prisma = new PrismaClient();
 
-router.post('/signup',async (req,res)=>{
-    try {
-        const {firstName,lastName, email, password}=req.body;
-        // console.log(req.body)
-        const hashedPassword=await bcrypt.hash(password,10);
-        const newUser = await prisma.user.create({
-            data:{
-                firstName,
-                lastName,
-                email,
-                password:hashedPassword,
-            },
-        });
+router.post("/signup", async (req, res, next) => {
+  try {
+    const { firstName, lastName, email, password } = req.body;
+    // console.log(req.body)
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = await prisma.user.create({
+      data: {
+        firstName,
+        lastName,
+        email,
+        password: hashedPassword,
+      },
+    });
 
-        res.status(201).json({message:"User created successfully"});
-    } catch (error) {
-        res.status(500).json(error.message);
-    }
-}
-);
+    res.status(201).json({ message: "User created successfully" });
+  } catch (error) {
+    next(error);
+  }
+});
 
 export default router;

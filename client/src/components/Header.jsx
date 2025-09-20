@@ -14,7 +14,7 @@ export default function header() {
               <form className='bg-white rounded-lg'>
               <input className='p-2 shadow-md' type="text" placeholder='Search'/>
             </form>
-            <button className='bg-purple-200 hover:bg-purple-600 rounded-lg p-2'>Go</button>
+            <button className='bg-purple-200 hover:bg-purple-400 rounded-lg p-2'>Go</button>
             </div>
             <ul className='flex gap-10'>
               <Link to='/'><li className='hover:underline'>Home</li></Link>
