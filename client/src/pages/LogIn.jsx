@@ -1,13 +1,19 @@
+// LogIn.jsx
+
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+import { signInStart, signInFailure, signInSuccess } from "../redux/user/userSlice";
+
+
 
 export default function LogIn() {
   const [formData, setFormData] = useState({});
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const {loading, error} = useSelector((state) => state.user);
 
   const navigate = useNavigate();
+  const dispatch = useDispatch();
 
   const handleChange = (e) =>{
     setFormData({
@@ -20,12 +26,12 @@ export default function LogIn() {
       e.preventDefault();
 
       if(!formData.email || !formData.password){
-        setError("Both Email and Password are required!!")
+         dispatch(signInFailure("Both Email and Password are required!!"))
         return;
       }
 
       try {
-        setLoading(true);
+        dispatch(signInStart());
         const res = await fetch("/api/auth/login",{
           method:"POST",
           headers: {"Content-type": "application/json" },
@@ -36,16 +42,14 @@ export default function LogIn() {
         const data = await res.json();
 
         if(data.success===false){
-          setError(data.message);
-          setLoading(false);
+          dispatch(signInFailure((data.message)));
           return;
         }
-        setLoading(false);
-        navigate("/home");
+        dispatch(signInSuccess(data));
+        navigate("/");
         
       } catch (error) {
-        setLoading(false);
-        setError("Something went wrong");
+        dispatch(signInFailure(error.message));
       }
     }
 
@@ -59,6 +63,7 @@ export default function LogIn() {
           className="border rounded-lg p-2"
           type="email"
           placeholder="Email"
+          maxLength={30}
         />
         <input
           onChange={handleChange}
@@ -66,6 +71,8 @@ export default function LogIn() {
           className="border rounded-lg p-2"
           type="password"
           placeholder="Password"
+          maxLength={20}
+          minLength={8}
         />
         <button
         disabled={loading}

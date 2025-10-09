@@ -89,6 +89,7 @@ export default function SignUp() {
             onChange={handleChange}
             placeholder="Password"
             maxLength={30}
+            minLength={8}
           />
           <button disabled={loading} className="border rounded-lg bg-purple-200 p-1 hover:bg-purple-400 disabled:opacity-300">
             {loading ? 'Loading...' : 'SIGN UP'}

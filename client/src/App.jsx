@@ -4,8 +4,10 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Home from "./pages/Home";
 import SignUp from "./pages/SignUp";
 import LogIn from "./pages/LogIn";
+import Profile from "./pages/Profile";
 import About from "./pages/About";
-import Header from "./components/header";
+import Header from "./components/Header";
+import PrivateRoute from "./components/PrivateRoute";
 
 function App() {
   return (
@@ -15,6 +17,9 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/signup" element={<SignUp />} />
         <Route path="/login" element={<LogIn />} />
+        <Route element={<PrivateRoute />}>
+          <Route path="/profile" element={<Profile />} />
+        </Route>
         <Route path="/about" element={<About />} />
       </Routes>
     </BrowserRouter>
