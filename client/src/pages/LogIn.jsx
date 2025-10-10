@@ -1,92 +1,61 @@
-// LogIn.jsx
-
-import React, { useState } from "react";
-import { Link } from "react-router-dom";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
 import { signInStart, signInFailure, signInSuccess } from "../redux/user/userSlice";
 
-
+const BACKEND_URL = "http://localhost:3000";
 
 export default function LogIn() {
   const [formData, setFormData] = useState({});
-  const {loading, error} = useSelector((state) => state.user);
-
-  const navigate = useNavigate();
+  const { loading, error } = useSelector((state) => state.user);
   const dispatch = useDispatch();
+  const navigate = useNavigate();
 
-  const handleChange = (e) =>{
-    setFormData({
-      ...formData,
-      [e.target.id]: e.target.value,
-    })
-  };
+  useEffect(() => {
+    dispatch(signInFailure(null));
+  }, [dispatch]);
 
-    const handleSubmit = async (e) =>{
-      e.preventDefault();
+  const handleChange = (e) => setFormData({ ...formData, [e.target.id]: e.target.value });
 
-      if(!formData.email || !formData.password){
-         dispatch(signInFailure("Both Email and Password are required!!"))
-        return;
-      }
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.email || !formData.password) return dispatch(signInFailure("Email & Password required"));
 
-      try {
-        dispatch(signInStart());
-        const res = await fetch("/api/auth/login",{
-          method:"POST",
-          headers: {"Content-type": "application/json" },
-          body:JSON.stringify(formData),
+    try {
+      dispatch(signInStart());
+      const res = await fetch(`${BACKEND_URL}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(formData),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) return dispatch(signInFailure(data.message));
 
-        });
-
-        const data = await res.json();
-
-        if(data.success===false){
-          dispatch(signInFailure((data.message)));
-          return;
-        }
-        dispatch(signInSuccess(data));
-        navigate("/");
-        
-      } catch (error) {
-        dispatch(signInFailure(error.message));
-      }
+      dispatch(signInSuccess(data.user));
+      navigate("/");
+    } catch (err) {
+      dispatch(signInFailure(err.message));
     }
+  };
 
   return (
     <div className="p-3 max-w-lg m-10 mx-auto">
       <h1 className="text-4xl text-center font-semibold m-5">Log In</h1>
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-        <input
-          onChange={handleChange}
-          id="email"
-          className="border rounded-lg p-2"
-          type="email"
-          placeholder="Email"
-          maxLength={30}
-        />
-        <input
-          onChange={handleChange}
-          id="password"
-          className="border rounded-lg p-2"
-          type="password"
-          placeholder="Password"
-          maxLength={20}
-          minLength={8}
-        />
-        <button
-        disabled={loading}
-         className = "border rounded-lg bg-purple-200 p-1 hover:bg-purple-400 disabled:opacity-300">
-          LOG IN
+        <input id="email" placeholder="Email" type="email" onChange={handleChange} className="border p-2 rounded-xl" />
+        <input id="password" placeholder="Password" type="password" onChange={handleChange} className="border p-2 rounded-xl" />
+        <button disabled={loading} className="bg-purple-200 border p-2 rounded-xl hover:bg-purple-400 disabled:opacity-50">
+          {loading ? "Loading..." : "LOG IN"}
         </button>
-        <div className="flex gap-2">
-          <p>Don't have an account?</p>
-          <Link to={"/signup"}>
-            <span className="text-violet-900 hover:underline">Sign Up</span>
-          </Link>
-        </div>
-        <div>{error && <p className="text-red-500">{error}</p>}</div>
+        {error && <p className="text-red-600">{error}</p>}
       </form>
+      <p className="mt-4 text-center">
+        Don't have an account?{" "}
+        <span className="text-blue-600 hover:underline cursor-pointer" onClick={() => navigate("/signup")}>
+          Sign Up
+        </span>
+      </p>
     </div>
   );
 }
