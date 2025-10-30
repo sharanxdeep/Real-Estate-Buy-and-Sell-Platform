@@ -1,95 +1,96 @@
 import React, { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 
-const BACKEND_URL = "http://localhost:3000";
-
-function Home() {
+export default function Home() {
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
+  const location = useLocation();
 
   useEffect(() => {
     const fetchProperties = async () => {
       try {
-        const res = await fetch(`${BACKEND_URL}/api/properties`);
+        setLoading(true);
+        const params = new URLSearchParams(location.search);
+        const query = params.get("query");
+
+        let url = "http://localhost:3000/api/property";
+        if (query) {
+          url = `http://localhost:3000/api/property/search?query=${encodeURIComponent(query)}`;
+        }
+
+        const res = await fetch(url);
         const data = await res.json();
-        if (!data.success)
-          throw new Error(data.message || "Failed to fetch properties");
-        setProperties(data.properties);
-        setLoading(false);
-      } catch (err) {
-        console.error(err);
+
+        if (data.success && Array.isArray(data.properties)) {
+          setProperties(data.properties);
+        } else {
+          setProperties([]);
+        }
+      } catch (error) {
+        console.error("Error fetching properties:", error);
+        setProperties([]);
+      } finally {
         setLoading(false);
       }
     };
-    fetchProperties();
-  }, []);
 
-  if (loading)
-    return <div className="text-center py-20">Loading properties...</div>;
+    fetchProperties();
+  }, [location.search]);
 
   return (
-    <div className="bg-gray-50 min-h-screen relative overflow-x-hidden">
-      <section
-        className="relative py-24 px-6 text-center flex flex-col items-center justify-center bg-cover bg-center min-h-[350px]"
-        style={{
-          backgroundImage:
-            "url('https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=1200&q=80')",
-        }}
-      >
-        <div className="absolute inset-0 bg-gray-100 bg-opacity-80 mix-blend-multiply"></div>
-        <div className="relative z-10 max-w-4xl p-10 rounded-lg bg-white bg-opacity-80 shadow-lg">
-          <h1 className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-6 font-serif">
-            SafeRoof: Your Dream Home Awaits
-          </h1>
-          <p className="text-xl md:text-2xl text-gray-700 mb-4">
-            Where comfort meets style in the perfect space.
-          </p>
-          <p className="text-base text-gray-600">
-            Explore the finest properties tailored for your lifestyle. Find
-            security, elegance, and warmth all under one SafeRoof.
-          </p>
-          <span className="mt-5 inline-block text-purple-700 font-semibold text-lg">
-            Start your next chapter here.
-          </span>
-        </div>
+    <div className="bg-gray-50 min-h-screen py-8 px-6">
+      <section className="max-w-6xl mx-auto text-center mb-8">
+        <h1 className="text-4xl font-bold mb-2 text-purple-700">
+          Find Your Dream Property
+        </h1>
+        <p className="text-gray-500">Search properties</p>
       </section>
 
-      <section className="py-12 px-6 max-w-7xl mx-auto">
-        <h2 className="text-3xl text-center font-bold font-serif mb-12">
-          Featured Properties
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10">
+      {loading ? (
+        <p className="text-center text-gray-500">Loading properties...</p>
+      ) : properties.length === 0 ? (
+        <p className="text-center text-gray-500">No properties found.</p>
+      ) : (
+        <section className="max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {properties.map((property) => (
             <div
               key={property.propertyId}
-              className="rounded-lg overflow-hidden shadow-lg hover:shadow-2xl transition-shadow duration-500 bg-white flex flex-col"
+              className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-2xl hover:-translate-y-2 transition-all duration-300"
             >
+              {/* Property Image */}
               <img
                 src={
                   property.images?.[0]?.imageUrl
-                    ? `${BACKEND_URL}${property.images[0].imageUrl}`
-                    : "https://via.placeholder.com/400x250"
+                    ? `http://localhost:3000${property.images[0].imageUrl}`
+                    : "https://via.placeholder.com/400x250?text=No+Image"
                 }
                 alt={property.title}
-                className="object-cover w-full h-56 group-hover:scale-105 transition-transform duration-300"
+                className="object-cover w-full h-56"
               />
 
-              <div className="p-5 flex flex-col flex-grow">
-                <h3 className="text-lg font-semibold text-gray-800">
+              {/* Property Details */}
+              <div className="p-5">
+                <h3 className="text-xl font-semibold text-gray-800">
                   {property.title}
                 </h3>
-                <p className="mt-1 text-gray-600">
-                  {property.address?.city}, {property.address?.state}
+                <p className="text-gray-600 mt-2 line-clamp-2">
+                  {property.description}
                 </p>
-                <div className="mt-auto font-bold text-purple-600 text-xl">
+
+                {property.address && (
+                  <p className="text-gray-500 mt-2 text-sm">
+                    {property.address.city}, {property.address.state}
+                  </p>
+                )}
+
+                <div className="mt-3 font-bold text-purple-600 text-lg">
                   ₹{property.price}
                 </div>
               </div>
             </div>
           ))}
-        </div>
-      </section>
+        </section>
+      )}
     </div>
   );
 }
-
-export default Home;

@@ -1,31 +1,26 @@
 import express from "express";
 import { PrismaClient } from "@prisma/client";
-import { verifyToken } from "../utils/verifyUser.js";
 import multer from "multer";
 import path from "path";
+import { verifyToken } from "../utils/verifyUser.js";
 
 const prisma = new PrismaClient();
 const router = express.Router();
 
+// Multer setup
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, "uploads/");
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  },
+  destination: (req, file, cb) => cb(null, "uploads/"),
+  filename: (req, file, cb) =>
+    cb(null, Date.now() + "-" + Math.round(Math.random() * 1e9) + path.extname(file.originalname)),
 });
 const upload = multer({ storage });
 
-router.post("/list", verifyToken, upload.array("images", 5), async (req, res) => {
+// ✅ Create property
+router.post("/", verifyToken, upload.array("images", 5), async (req, res) => {
   try {
     const { title, description, price, status, category, locality, city, state, zipcode } = req.body;
-    if (!title || !description || !price || !status || !category || !locality || !city || !state || !zipcode) {
-      return res.status(400).json({ success: false, message: "All fields are required" });
-    }
 
-    const newProperty = await prisma.property.create({
+    const property = await prisma.property.create({
       data: {
         title,
         description,
@@ -36,44 +31,80 @@ router.post("/list", verifyToken, upload.array("images", 5), async (req, res) =>
         address: {
           create: { locality, city, state, zipcode },
         },
-      },
-    });
-
-    if (req.files && req.files.length > 0) {
-      for (const file of req.files) {
-        await prisma.propertyImage.create({
-          data: {
+        images: {
+          create: req.files.map((file) => ({
             imageUrl: `/uploads/${file.filename}`,
             imageName: file.originalname,
-            propertyId: newProperty.propertyId,
-          },
-        });
-      }
-    }
+          })),
+        },
+      },
+      include: { address: true, images: true },
+    });
 
-    res.json({ success: true, message: "Property listed successfully!" });
-  } catch (err) {
-    console.error("List property error:", err);
-    res.status(500).json({ success: false, message: "Error listing property" });
+    res.json({ success: true, property });
+  } catch (error) {
+    console.error("Create property error:", error);
+    res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
+// ✅ Get all properties (Home Page)
 router.get("/", async (req, res) => {
   try {
     const properties = await prisma.property.findMany({
       include: {
         address: true,
         images: true,
-        owner: { select: { firstName: true, lastName: true } },
       },
-      orderBy: { listedAt: "desc" },
+      orderBy: { propertyId: "desc" },
     });
 
     res.json({ success: true, properties });
-  } catch (err) {
-    console.error("Fetch properties error:", err);
-    res.status(500).json({ success: false, message: "Error fetching properties" });
+  } catch (error) {
+    console.error("Fetch properties error:", error);
+    res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
+
+// ✅ Search properties (title, category, city, description)
+// ✅ Search properties by title, description, category, or city
+// ✅ Fixed search route (handles nested address relations safely)
+// ✅ Fixed Search Route (compatible with MySQL)
+router.get("/search", async (req, res) => {
+  const query = req.query.query?.trim();
+  if (!query) return res.json({ success: true, properties: [] });
+
+  try {
+    const properties = await prisma.property.findMany({
+      where: {
+        OR: [
+          { title: { contains: query } },
+          { description: { contains: query } },
+          { category: { contains: query } },
+          {
+            address: {
+              city: { contains: query },
+            },
+          },
+        ],
+      },
+      include: {
+        address: true,
+        images: true,
+      },
+      orderBy: { propertyId: "desc" },
+    });
+
+    res.json({ success: true, properties });
+  } catch (error) {
+    console.error("❌ Search error:", error);
+    res
+      .status(500)
+      .json({ success: false, message: error.message || "Internal server error" });
+  }
+});
+
+
+
 
 export default router;
