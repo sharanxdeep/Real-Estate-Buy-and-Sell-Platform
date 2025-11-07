@@ -30,7 +30,15 @@ export default function LogIn() {
         body: JSON.stringify(formData),
       });
       const data = await res.json();
-      if (!res.ok || !data.success) return dispatch(signInFailure(data.message));
+      if (!res.ok || !data.success) return dispatch(signInFailure(data.message || "Login failed"));
+
+      if (data.token) {
+        try {
+          localStorage.setItem("access_token", data.token);
+        } catch (err) {
+          console.warn("Could not save token to localStorage", err);
+        }
+      }
 
       dispatch(signInSuccess(data.user));
       navigate("/");

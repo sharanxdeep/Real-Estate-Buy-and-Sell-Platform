@@ -59,3 +59,22 @@ model PropertyImage {
   propertyId  Int
   property    Property @relation(fields: [propertyId], references: [propertyId], onDelete: Cascade)
 }
+
+model Conversation {
+  id         Int       @id @default(autoincrement())
+  propertyId Int
+  ownerId    Int
+  buyerId    Int?
+  createdAt  DateTime  @default(now())
+  messages   Message[]
+}
+
+model Message {
+  id             Int       @id @default(autoincrement())
+  conversationId Int
+  senderId       Int?
+  text           String
+  createdAt      DateTime  @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+}
+

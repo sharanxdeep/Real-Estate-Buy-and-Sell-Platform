@@ -2,9 +2,20 @@ import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { PrismaClient } from "@prisma/client";
+import { verifyToken } from "../utils/verifyUser.js";
 
 const prisma = new PrismaClient();
 const router = express.Router();
+
+function cookieOptions() {
+  return {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  };
+}
 
 router.post("/signup", async (req, res) => {
   const { firstName, lastName, email, password } = req.body;
@@ -20,8 +31,7 @@ router.post("/signup", async (req, res) => {
 
     const token = jwt.sign({ userid: newUser.userid, email: newUser.email }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
-    res.cookie("access_token", token, { httpOnly: true, sameSite: "lax", secure: false, maxAge: 7 * 24 * 60 * 60 * 1000 })
-      .json({ success: true, message: "Signup successful", user: newUser });
+    res.cookie("access_token", token, cookieOptions()).json({ success: true, message: "Signup successful", user: newUser, token });
   } catch (err) {
     console.error("Signup error:", err);
     res.status(500).json({ success: false, message: "Internal server error" });
@@ -39,8 +49,12 @@ router.post("/login", async (req, res) => {
 
     const token = jwt.sign({ userid: user.userid, email: user.email }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
-    res.cookie("access_token", token, { httpOnly: true, sameSite: "lax", secure: false, maxAge: 7 * 24 * 60 * 60 * 1000 })
-      .json({ success: true, message: "Login successful", user: { userid: user.userid, firstName: user.firstName, lastName: user.lastName, email: user.email } });
+    res.cookie("access_token", token, cookieOptions()).json({
+      success: true,
+      message: "Login successful",
+      user: { userid: user.userid, firstName: user.firstName, lastName: user.lastName, email: user.email },
+      token
+    });
   } catch (err) {
     console.error("Login error:", err);
     res.status(500).json({ success: false, message: "Internal server error" });
@@ -48,8 +62,23 @@ router.post("/login", async (req, res) => {
 });
 
 router.post("/logout", (req, res) => {
-  res.clearCookie("access_token", { httpOnly: true, sameSite: "lax", secure: false })
-    .json({ success: true, message: "Logged out successfully" });
+  res.clearCookie("access_token", { path: "/" }).json({ success: true, message: "Logged out successfully" });
+});
+
+router.get("/me", verifyToken, async (req, res) => {
+  try {
+    const userid = req.user?.userid;
+    if (!userid) return res.status(401).json({ success: false, message: "Unauthorized" });
+    const user = await prisma.user.findUnique({
+      where: { userid },
+      select: { userid: true, firstName: true, lastName: true, email: true }
+    });
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+    res.json({ success: true, user });
+  } catch (err) {
+    console.error("GET /api/auth/me error:", err);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
 });
 
 export default router;

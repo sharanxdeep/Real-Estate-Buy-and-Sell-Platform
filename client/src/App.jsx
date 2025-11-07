@@ -8,22 +8,27 @@ import About from "./pages/About";
 import Header from "./components/Header";
 import PrivateRoute from "./components/PrivateRoute";
 import ListProperty from "./pages/ListProperty";
+import ChatPage from "./pages/Chat";
+import { SocketProvider } from "./services/socket";
 
 function App() {
   return (
-    <BrowserRouter>
-      <Header />
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/signup" element={<SignUp />} />
-        <Route path="/login" element={<LogIn />} />
-        <Route element={<PrivateRoute />}>
-          <Route path="/profile" element={<Profile />} />
-        </Route>
-        <Route path="/about" element={<About />} />
-        <Route path="/list-property" element={<ListProperty />} />
-      </Routes>
-    </BrowserRouter>
+    <SocketProvider>
+      <BrowserRouter>
+        <Header />
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/signup" element={<SignUp />} />
+          <Route path="/login" element={<LogIn />} />
+          <Route element={<PrivateRoute />}>
+            <Route path="/profile" element={<Profile />} />
+          </Route>
+          <Route path="/about" element={<About />} />
+          <Route path="/list-property" element={<ListProperty />} />
+          <Route path="/chat/:conversationId" element={<ChatPage />} />
+        </Routes>
+      </BrowserRouter>
+    </SocketProvider>
   );
 }
 

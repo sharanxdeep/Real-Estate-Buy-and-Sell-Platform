@@ -1,22 +1,36 @@
 import React, { useEffect, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 export default function Home() {
   const [properties, setProperties] = useState([]);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
 
   const params = new URLSearchParams(location.search);
   const query = params.get("query") || "";
+
+  const fetchAuth = async () => {
+    try {
+      const res = await fetch("http://localhost:3000/api/user/me", { credentials: "include" });
+      if (!res.ok) {
+        setIsLoggedIn(false);
+        return;
+      }
+      const data = await res.json();
+      setIsLoggedIn(Boolean(data?.success && data?.user));
+    } catch (err) {
+      setIsLoggedIn(false);
+    }
+  };
 
   const fetchProperties = async () => {
     try {
       const endpoint = query
         ? `http://localhost:3000/api/property/search?query=${encodeURIComponent(query)}`
         : `http://localhost:3000/api/property`;
-
-      const res = await fetch(endpoint);
+      const res = await fetch(endpoint, { credentials: "include" });
       const data = await res.json();
-
       if (data.success) {
         setProperties(data.properties);
       } else {
@@ -24,12 +38,52 @@ export default function Home() {
       }
     } catch (error) {
       console.error("Error fetching properties:", error);
+      setProperties([]);
     }
   };
 
   useEffect(() => {
+    fetchAuth();
     fetchProperties();
   }, [query]);
+
+  const handleChat = async (property) => {
+    try {
+      const payload = {
+        propertyId: property.propertyId,
+        ownerId: property.ownerId
+      };
+
+      const res = await fetch("http://localhost:3000/api/chat/conversations", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        console.error("Chat create failed:", res.status, text);
+        if (res.status === 401) {
+          alert("Please log in to start a conversation");
+          return;
+        }
+        alert("Unable to start chat");
+        return;
+      }
+
+      const data = await res.json();
+      if (data.success && data.conversation) {
+        const id = data.conversation.id;
+        navigate(`/chat/${id}`);
+        return;
+      }
+
+      console.error("Could not create/get conversation", data);
+    } catch (err) {
+      console.error("handleChat error:", err);
+    }
+  };
 
   return (
     <div className="bg-gray-50 min-h-screen p-6">
@@ -50,7 +104,6 @@ export default function Home() {
               key={property.propertyId}
               className="rounded-lg overflow-hidden shadow-lg bg-white flex flex-col hover:shadow-2xl transition duration-300"
             >
-              {/* Main Image */}
               <img
                 src={
                   property.images?.[0]?.imageUrl
@@ -61,7 +114,6 @@ export default function Home() {
                 className="object-cover w-full h-56"
               />
 
-              {/* Property Info */}
               <div className="p-5 flex flex-col flex-grow">
                 <h3 className="text-lg font-semibold text-gray-800 mb-2">
                   {property.title}
@@ -80,7 +132,6 @@ export default function Home() {
                   ₹{property.price}
                 </div>
 
-                {/* Additional Images */}
                 {property.images?.length > 1 && (
                   <div className="flex gap-2 overflow-x-auto pb-2">
                     {property.images.slice(1).map((img, idx) => (
@@ -94,7 +145,6 @@ export default function Home() {
                   </div>
                 )}
 
-                {/* Owner Info */}
                 <p className="mt-3 text-gray-800 font-semibold">
                   Uploaded by:{" "}
                   <span className="text-purple-600">
@@ -105,7 +155,14 @@ export default function Home() {
                 </p>
 
                 <button
-                  onClick={() => alert("Chat feature coming soon!")}
+                  onClick={() => {
+                    if (!isLoggedIn) {
+                      alert("You need to log in first to start a chat");
+                      navigate("/login");
+                      return;
+                    }
+                    handleChat(property);
+                  }}
                   className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition"
                 >
                   Chat with Owner
