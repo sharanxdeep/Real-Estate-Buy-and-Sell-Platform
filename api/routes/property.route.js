@@ -7,7 +7,6 @@ import { verifyToken } from "../utils/verifyUser.js";
 const prisma = new PrismaClient();
 const router = express.Router();
 
-// Multer setup
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, "uploads/"),
   filename: (req, file, cb) =>
@@ -15,7 +14,6 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// ✅ Create property
 router.post("/", verifyToken, upload.array("images", 5), async (req, res) => {
   try {
     const { title, description, price, status, category, locality, city, state, zipcode } = req.body;
@@ -38,7 +36,11 @@ router.post("/", verifyToken, upload.array("images", 5), async (req, res) => {
           })),
         },
       },
-      include: { address: true, images: true },
+      include: {
+        address: true,
+        images: true,
+        owner: { select: { firstName: true, lastName: true, email: true } },
+      },
     });
 
     res.json({ success: true, property });
@@ -48,13 +50,14 @@ router.post("/", verifyToken, upload.array("images", 5), async (req, res) => {
   }
 });
 
-// ✅ Get all properties (Home Page)
+
 router.get("/", async (req, res) => {
   try {
     const properties = await prisma.property.findMany({
       include: {
         address: true,
         images: true,
+        owner: { select: { firstName: true, lastName: true, email: true } },
       },
       orderBy: { propertyId: "desc" },
     });
@@ -66,13 +69,12 @@ router.get("/", async (req, res) => {
   }
 });
 
-// ✅ Search properties (title, category, city, description)
-// ✅ Search properties by title, description, category, or city
-// ✅ Fixed search route (handles nested address relations safely)
-// ✅ Fixed Search Route (compatible with MySQL)
+
 router.get("/search", async (req, res) => {
   const query = req.query.query?.trim();
-  if (!query) return res.json({ success: true, properties: [] });
+  if (!query) {
+    return res.json({ success: true, properties: [] });
+  }
 
   try {
     const properties = await prisma.property.findMany({
@@ -91,20 +93,16 @@ router.get("/search", async (req, res) => {
       include: {
         address: true,
         images: true,
+        owner: { select: { firstName: true, lastName: true, email: true } },
       },
       orderBy: { propertyId: "desc" },
     });
 
     res.json({ success: true, properties });
   } catch (error) {
-    console.error("❌ Search error:", error);
-    res
-      .status(500)
-      .json({ success: false, message: error.message || "Internal server error" });
+    console.error("Search error:", error);
+    res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
-
-
-
 
 export default router;
