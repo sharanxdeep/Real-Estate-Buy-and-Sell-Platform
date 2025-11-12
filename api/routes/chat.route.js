@@ -1,37 +1,34 @@
 import express from "express";
 import { PrismaClient } from "@prisma/client";
-import { verifyTokenOptional, verifyToken } from "../utils/verifyUser.js";
+import { verifyToken } from "../utils/verifyUser.js";
 
 const prisma = new PrismaClient();
 const router = express.Router();
 
-router.post("/conversations", verifyTokenOptional, async (req, res) => {
+router.post("/conversations", verifyToken, async (req, res) => {
   try {
+    console.log("POST /api/chat/conversations called. req.user:", req.user);
     const { propertyId, ownerId } = req.body;
     if (!propertyId || !ownerId) {
       return res.status(400).json({ success: false, message: "Missing propertyId or ownerId" });
     }
 
-    const requesterId = req.user?.userid ? Number(req.user.userid) : null;
-
-    let conversation;
-    if (requesterId) {
-      conversation = await prisma.conversation.findFirst({
-        where: {
-          propertyId: Number(propertyId),
-          ownerId: Number(ownerId),
-          buyerId: requesterId,
-        },
-      });
-    } else {
-      conversation = await prisma.conversation.findFirst({
-        where: {
-          propertyId: Number(propertyId),
-          ownerId: Number(ownerId),
-          buyerId: null,
-        },
-      });
+    const requesterId = Number(req.user.userid);
+    if (!requesterId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
     }
+
+    if (Number(ownerId) === requesterId) {
+      return res.status(400).json({ success: false, message: "Cannot chat with yourself" });
+    }
+
+    let conversation = await prisma.conversation.findFirst({
+      where: {
+        propertyId: Number(propertyId),
+        ownerId: Number(ownerId),
+        buyerId: requesterId,
+      },
+    });
 
     if (!conversation) {
       conversation = await prisma.conversation.create({
@@ -45,32 +42,36 @@ router.post("/conversations", verifyTokenOptional, async (req, res) => {
 
     res.json({ success: true, conversation });
   } catch (err) {
-    console.error("Create conversation error:", err);
+    console.error("Conversation error:", err);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
 
-router.get("/:conversationId/messages", verifyTokenOptional, async (req, res) => {
+router.get("/:conversationId/messages", verifyToken, async (req, res) => {
   try {
     const { conversationId } = req.params;
+    const userId = Number(req.user.userid);
+
+    const conversation = await prisma.conversation.findUnique({
+      where: { id: Number(conversationId) },
+    });
+
+    if (!conversation) {
+      return res.status(404).json({ success: false, message: "Conversation not found" });
+    }
+
+    if (conversation.buyerId !== userId && conversation.ownerId !== userId) {
+      return res.status(403).json({ success: false, message: "Forbidden" });
+    }
+
     const messages = await prisma.message.findMany({
       where: { conversationId: Number(conversationId) },
       orderBy: { createdAt: "asc" },
     });
 
-    const userId = req.user?.userid ? Number(req.user.userid) : null;
-    const prepared = messages.map((m) => ({
-      id: m.id,
-      conversationId: m.conversationId,
-      senderId: m.senderId,
-      text: m.text,
-      createdAt: m.createdAt,
-      isMine: userId ? Number(m.senderId) === userId : false,
-    }));
-
-    res.json({ success: true, messages: prepared });
+    res.json({ success: true, messages });
   } catch (err) {
-    console.error("Fetch messages error:", err);
+    console.error(err);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });
@@ -79,38 +80,68 @@ router.post("/:conversationId/messages", verifyToken, async (req, res) => {
   try {
     const { conversationId } = req.params;
     const { text } = req.body;
-    const senderId = req.user?.userid ? Number(req.user.userid) : null;
-    if (!senderId) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
-    }
-    if (!text || !String(text).trim()) {
-      return res.status(400).json({ success: false, message: "Message text required" });
+    const userId = Number(req.user.userid);
+
+    if (!text?.trim()) {
+      return res.status(400).json({ success: false, message: "Empty message" });
     }
 
-    const msg = await prisma.message.create({
+    const conversation = await prisma.conversation.findUnique({
+      where: { id: Number(conversationId) },
+    });
+
+    if (!conversation) {
+      return res.status(404).json({ success: false, message: "Conversation not found" });
+    }
+
+    if (conversation.buyerId !== userId && conversation.ownerId !== userId) {
+      return res.status(403).json({ success: false, message: "Forbidden" });
+    }
+
+    const message = await prisma.message.create({
       data: {
         conversationId: Number(conversationId),
-        senderId,
-        text: String(text),
+        senderId: userId,
+        text,
       },
     });
 
-    const payload = {
-      id: msg.id,
-      conversationId: msg.conversationId,
-      senderId: msg.senderId,
-      text: msg.text,
-      createdAt: msg.createdAt,
-    };
+    res.json({ success: true, message });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
 
-    if (globalThis.io) {
-      globalThis.io.to(`conversation_${conversationId}`).emit("receive_message", { conversationId: Number(conversationId), message: payload });
+router.put("/:conversationId/read", verifyToken, async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const userId = Number(req.user.userid);
+
+    const conversation = await prisma.conversation.findUnique({
+      where: { id: Number(conversationId) },
+    });
+
+    if (!conversation) {
+      return res.status(404).json({ success: false, message: "Conversation not found" });
     }
 
-    const isMine = Number(msg.senderId) === senderId;
-    res.json({ success: true, message: { ...payload, isMine } });
+    if (conversation.buyerId !== userId && conversation.ownerId !== userId) {
+      return res.status(403).json({ success: false, message: "Forbidden" });
+    }
+
+    const resMark = await prisma.message.updateMany({
+      where: {
+        conversationId: Number(conversationId),
+        senderId: { not: userId },
+        isRead: false,
+      },
+      data: { isRead: true },
+    });
+
+    res.json({ success: true, updated: resMark.count });
   } catch (err) {
-    console.error("Create message error:", err);
+    console.error(err);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 });

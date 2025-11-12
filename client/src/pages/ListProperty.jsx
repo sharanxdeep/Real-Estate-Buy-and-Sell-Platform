@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 
 const BACKEND_URL = "http://localhost:3000";
 
 export default function ListProperty() {
+  const fileInputRef = useRef(null);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -15,6 +16,7 @@ export default function ListProperty() {
     zipcode: "",
     images: [],
   });
+  const [submitting, setSubmitting] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -34,30 +36,53 @@ export default function ListProperty() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitting) return;
+    if (!formData.title || !formData.description || !formData.price) {
+      alert("Title, description and price are required");
+      return;
+    }
+
+    setSubmitting(true);
     try {
-      const form = new FormData();
-      form.append("title", formData.title);
-      form.append("description", formData.description);
-      form.append("price", formData.price);
-      form.append("status", formData.status);
-      form.append("category", formData.category);
-      form.append("locality", formData.locality);
-      form.append("city", formData.city);
-      form.append("state", formData.state);
-      form.append("zipcode", formData.zipcode);
-      for (let i = 0; i < formData.images.length; i++) {
-        form.append("images", formData.images[i]);
+      const fd = new FormData();
+      fd.append("title", formData.title);
+      fd.append("description", formData.description);
+      fd.append("price", formData.price);
+      fd.append("status", formData.status);
+      fd.append("category", formData.category);
+      fd.append("locality", formData.locality);
+      fd.append("city", formData.city);
+      fd.append("state", formData.state);
+      fd.append("zipcode", formData.zipcode);
+
+      const files = formData.images || [];
+      for (let i = 0; i < files.length; i++) {
+        fd.append("images", files[i]); // must match multer field name "images"
       }
 
-      const res = await fetch(`${BACKEND_URL}/api/properties/list`, {
+      const res = await fetch(`${BACKEND_URL}/api/property`, {
         method: "POST",
-        body: form,
         credentials: "include",
+        body: fd,
       });
 
-      if (!res.ok) throw new Error("Failed to list property");
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (err) {
+        data = { success: false, message: text || "Unexpected response" };
+      }
 
-      const data = await res.json();
+      console.log("ListProperty -> response:", res.status, data);
+
+      if (!res.ok || !data.success) {
+        const msg = data?.message || `status ${res.status}`;
+        alert("Failed to list property: " + msg);
+        setSubmitting(false);
+        return;
+      }
+
       alert("Property listed successfully!");
       setFormData({
         title: "",
@@ -71,17 +96,18 @@ export default function ListProperty() {
         zipcode: "",
         images: [],
       });
+      if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (err) {
-      console.error(err);
-      alert("Error listing property");
+      console.error("Network/client error listing property:", err);
+      alert("Error listing property: " + (err.message || err));
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
     <div className="max-w-3xl mx-auto my-10 p-5 border rounded-xl shadow-md">
-      <h1 className="text-3xl font-semibold text-center mb-5">
-        List a Property
-      </h1>
+      <h1 className="text-3xl font-semibold text-center mb-5">List a Property</h1>
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         <input
           className="border p-2 rounded-md"
@@ -160,6 +186,8 @@ export default function ListProperty() {
           title="Zipcode must be 6 digits"
         />
         <input
+          name="images"
+          ref={fileInputRef}
           type="file"
           multiple
           onChange={handleFileChange}
@@ -167,9 +195,10 @@ export default function ListProperty() {
         />
         <button
           type="submit"
-          className="bg-purple-400 hover:bg-purple-600 text-white p-3 rounded-md mt-3"
+          disabled={submitting}
+          className="bg-purple-400 hover:bg-purple-600 text-white p-3 rounded-md mt-3 disabled:opacity-60"
         >
-          List Property
+          {submitting ? "Listing..." : "List Property"}
         </button>
       </form>
     </div>

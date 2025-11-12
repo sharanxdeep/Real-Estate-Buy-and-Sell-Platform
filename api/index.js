@@ -9,6 +9,7 @@ import authRoutes from "./routes/auth.route.js";
 import userRoutes from "./routes/user.route.js";
 import propertyRoutes from "./routes/property.route.js";
 import chatRoutes from "./routes/chat.route.js";
+import reviewRoutes from "./routes/review.route.js";
 
 dotenv.config();
 const prisma = new PrismaClient();
@@ -31,6 +32,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/property", propertyRoutes);
 app.use("/api/chat", chatRoutes);
+app.use("/api/reviews", reviewRoutes);
 
 app.get("/", (req, res) => {
   res.send("SafeRoof backend is running...");

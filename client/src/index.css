@@ -17,3 +17,28 @@ body{
 .animate-fadeIn {
   animation: fadeIn 0.4s ease-in-out;
 }
+
+@keyframes scroll-horizontal {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
+
+.scroll-container {
+  display: inline-flex;
+  gap: 40px;
+  align-items: center;
+  white-space: nowrap;
+  padding-left: 16px;
+  padding-right: 16px;
+  will-change: transform;
+  animation-name: scroll-horizontal;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@media (min-width: 640px) {
+  .scroll-container {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+}

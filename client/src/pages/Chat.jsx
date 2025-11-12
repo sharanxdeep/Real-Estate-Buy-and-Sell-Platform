@@ -1,3 +1,4 @@
+// src/pages/Chat.jsx
 import React, { useContext, useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { SocketContext } from "../services/socket";
@@ -12,67 +13,68 @@ export default function ChatPage() {
   const messagesEndRef = useRef();
   const navigate = useNavigate();
 
+  const BACKEND_URL = "http://localhost:3000";
+
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const res = await fetch("http://localhost:3000/api/user/me", {
-          credentials: "include",
-        });
+        const res = await fetch(`${BACKEND_URL}/api/user/me`, { credentials: "include" });
         const data = await res.json();
         if (!mounted) return;
+
         if (res.ok && data.success && data.user) {
           setIsLoggedIn(true);
           setCurrentUserId(Number(data.user.userid));
         } else {
-          setIsLoggedIn(false);
-          setCurrentUserId(null);
+          alert("Please login to access chat");
+          navigate("/login");
         }
-      } catch (err) {
-        if (!mounted) return;
-        setIsLoggedIn(false);
-        setCurrentUserId(null);
+      } catch {
+        alert("Please login to access chat");
+        navigate("/login");
       }
     })();
-    return () => {
-      mounted = false;
-    };
+
+    return () => { mounted = false };
   }, []);
 
   useEffect(() => {
+    if (!isLoggedIn) return;
+
     const fetchMessages = async () => {
       try {
-        const res = await fetch(`http://localhost:3000/api/chat/${conversationId}/messages`, {
+        const res = await fetch(`${BACKEND_URL}/api/chat/${conversationId}/messages`, {
           credentials: "include",
         });
         const data = await res.json();
         if (data.success) {
-          const prepared = data.messages.map((m) => ({
-            ...m,
-            isMine: currentUserId ? Number(m.senderId) === Number(currentUserId) : Boolean(m.isMine),
-          }));
-          setMessages(prepared);
+          setMessages(
+            data.messages.map((m) => ({
+              ...m,
+              isMine: Number(m.senderId) === Number(currentUserId),
+            }))
+          );
         }
-      } catch (err) {}
+      } catch (err) {
+        console.error("Fetch messages error:", err);
+      }
     };
-    if (conversationId) fetchMessages();
-  }, [conversationId, currentUserId]);
+
+    fetchMessages();
+  }, [conversationId, currentUserId, isLoggedIn]);
 
   useEffect(() => {
-    if (!socket || !conversationId) return;
+    if (!socket || !conversationId || !isLoggedIn) return;
+
     socket.emit("join_conversation", { conversationId });
 
     const handleReceive = (payload) => {
       const incoming = payload.message;
       if (!incoming) return;
-      const incomingWithIsMine = {
-        ...incoming,
-        isMine: currentUserId ? Number(incoming.senderId) === Number(currentUserId) : Boolean(incoming.isMine),
-      };
       setMessages((prev) => {
-        const exists = prev.some((m) => Number(m.id) === Number(incomingWithIsMine.id));
-        if (exists) return prev;
-        return [...prev, incomingWithIsMine];
+        if (prev.find((m) => m.id === incoming.id)) return prev;
+        return [...prev, { ...incoming, isMine: Number(incoming.senderId) === Number(currentUserId) }];
       });
     };
 
@@ -81,63 +83,39 @@ export default function ChatPage() {
       socket.off("receive_message", handleReceive);
       socket.emit("leave_conversation", { conversationId });
     };
-  }, [socket, conversationId, currentUserId]);
+  }, [socket, conversationId, currentUserId, isLoggedIn]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const sendMessage = async () => {
-    if (!isLoggedIn) {
-      alert("You need to log in first to send messages");
-      navigate("/login");
-      return;
-    }
-    if (!text.trim()) return;
-    try {
-      const token = localStorage.getItem("access_token");
-      console.log("CHAT sendMessage: localStorage token present:", token ? "(yes)" : "(no)");
-      const headers = { "Content-Type": "application/json" };
-      if (token) headers["Authorization"] = `Bearer ${token}`;
+    if (!isLoggedIn) return alert("You must login first!");
 
-      const res = await fetch(`http://localhost:3000/api/chat/${conversationId}/messages`, {
+    if (!text.trim()) return;
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/chat/${conversationId}/messages`, {
         method: "POST",
         credentials: "include",
-        headers,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
       });
 
-      console.log("CHAT sendMessage: response status", res.status);
-      const txt = await res.text();
-      let parsed;
-      try {
-        parsed = JSON.parse(txt);
-      } catch (err) {
-        parsed = txt;
-      }
-      console.log("CHAT sendMessage: response body", parsed);
-
-      if (res.status === 401) {
-        alert("You need to log in first to send messages");
-        navigate("/login");
-        return;
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return alert(data.message || "Message failed");
       }
 
-      if (parsed?.success && parsed?.message) {
-        const msg = parsed.message;
-        const msgWithIsMine = {
-          ...msg,
-          isMine: currentUserId ? Number(msg.senderId) === Number(currentUserId) : true,
-        };
-        setMessages((m) => {
-          const exists = m.some((mm) => Number(mm.id) === Number(msgWithIsMine.id));
-          if (exists) return m;
-          return [...m, msgWithIsMine];
-        });
-        setText("");
-      }
+      setMessages((prev) => [
+        ...prev,
+        { ...data.message, isMine: true }
+      ]);
+      setText("");
+
     } catch (err) {
-      console.error("sendMessage error:", err);
+      console.error(err);
+      alert("Error sending message");
     }
   };
 
@@ -153,21 +131,21 @@ export default function ChatPage() {
       <div className="max-w-3xl mx-auto bg-white rounded-lg shadow p-4 flex flex-col" style={{ height: "80vh" }}>
         <div className="flex items-center justify-between mb-4">
           <div className="text-lg font-semibold">Chat</div>
-          <div>
-            <button onClick={() => navigate(-1)} className="px-3 py-1 border rounded">Back</button>
-          </div>
+          <button onClick={() => navigate(-1)} className="px-3 py-1 border rounded">Back</button>
         </div>
 
         <div className="flex-1 overflow-y-auto mb-4 p-2">
-          {messages.map((msg, idx) => (
-            <div key={idx} className={`mb-3 ${msg.isMine ? "text-right" : "text-left"}`}>
-              <div className={`inline-block px-4 py-2 rounded-lg ${msg.isMine ? "bg-purple-600 text-white" : "bg-gray-200 text-gray-800"}`}>
+          {messages.map((msg, i) => (
+            <div key={i} className={msg.isMine ? "text-right mb-3" : "text-left mb-3"}>
+              <div className={`inline-block px-4 py-2 rounded-lg ${msg.isMine ? "bg-purple-600 text-white" : "bg-gray-200"}`}>
                 {msg.text}
               </div>
-              <div className="text-xs text-gray-400 mt-1">{new Date(msg.createdAt).toLocaleString()}</div>
+              <div className="text-xs text-gray-400 mt-1">
+                {new Date(msg.createdAt).toLocaleString()}
+              </div>
             </div>
           ))}
-          <div ref={messagesEndRef} />
+          <div ref={messagesEndRef}></div>
         </div>
 
         <div className="flex gap-2">
@@ -175,12 +153,11 @@ export default function ChatPage() {
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="flex-1 p-2 border rounded-lg resize-none"
+            className="flex-1 p-2 border rounded-lg"
             rows={2}
-            placeholder={isLoggedIn ? "Type a message..." : "Log in to send messages"}
-            disabled={!isLoggedIn}
+            placeholder="Type a message..."
           />
-          <button onClick={sendMessage} className="px-4 py-2 bg-purple-600 text-white rounded-lg" disabled={!isLoggedIn}>
+          <button onClick={sendMessage} className="px-4 py-2 bg-purple-600 text-white rounded-lg">
             Send
           </button>
         </div>

@@ -35,12 +35,11 @@ export default function LogIn() {
       if (data.token) {
         try {
           localStorage.setItem("access_token", data.token);
-        } catch (err) {
-          console.warn("Could not save token to localStorage", err);
-        }
+        } catch {}
       }
 
       dispatch(signInSuccess(data.user));
+      window.dispatchEvent(new CustomEvent("safeRoofAuthChange", { detail: data.user.userid }));
       navigate("/");
     } catch (err) {
       dispatch(signInFailure(err.message));
