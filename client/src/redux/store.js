@@ -1,5 +1,3 @@
-// store.js
-
 import { combineReducers, configureStore } from '@reduxjs/toolkit'
 import userReducer from './user/userSlice';
 import { persistReducer } from 'redux-persist';

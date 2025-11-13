@@ -1,4 +1,3 @@
-// src/pages/Chat.jsx
 import React, { useContext, useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { SocketContext } from "../services/socket";

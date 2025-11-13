@@ -143,7 +143,7 @@ export default function ManageList() {
   return (
     <div className="max-w-4xl mx-auto p-6">
 
-      {/* ✅ Always one List Property button here */}
+      
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-2xl font-semibold">Manage Listings</h2>
         <button
@@ -154,7 +154,7 @@ export default function ManageList() {
         </button>
       </div>
 
-      {/* ❗ No second button here anymore */}
+      
       {properties.length === 0 && (
         <div className="p-6 text-center bg-white rounded shadow">
           <p className="text-gray-600">You have no property listings yet.</p>

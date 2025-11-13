@@ -14,7 +14,6 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// Create property
 router.post("/", verifyToken, upload.array("images", 5), async (req, res) => {
   try {
     const { title, description, price, status, category, locality, city, state, zipcode } = req.body;
@@ -60,7 +59,6 @@ router.post("/", verifyToken, upload.array("images", 5), async (req, res) => {
   }
 });
 
-// Get all properties
 router.get("/", async (req, res) => {
   try {
     const properties = await prisma.property.findMany({
@@ -79,7 +77,6 @@ router.get("/", async (req, res) => {
   }
 });
 
-// Search
 router.get("/search", async (req, res) => {
   const query = req.query.query?.trim();
   if (!query) {
@@ -115,7 +112,6 @@ router.get("/search", async (req, res) => {
   }
 });
 
-// Update property (owner only) — safer implementation with separate address upsert
 router.put("/:id", verifyToken, async (req, res) => {
   try {
     const propId = Number(req.params.id);
@@ -153,7 +149,6 @@ router.put("/:id", verifyToken, async (req, res) => {
       include: { address: true, images: true, owner: { select: { firstName: true, lastName: true, email: true } } },
     });
 
-    // Upsert address separately using the address model's unique propertyId
     try {
       await prisma.propertyAddress.upsert({
         where: { propertyId: propId },
@@ -173,10 +168,9 @@ router.put("/:id", verifyToken, async (req, res) => {
       });
     } catch (addrErr) {
       console.error("Address upsert error:", addrErr && (addrErr.stack || addrErr.message || addrErr));
-      // don't fail the whole request for address errors — just warn and continue
+  
     }
 
-    // Fetch fresh updated property with address
     const fresh = await prisma.property.findUnique({
       where: { propertyId: propId },
       include: { address: true, images: true, owner: { select: { firstName: true, lastName: true, email: true } } },
@@ -189,7 +183,7 @@ router.put("/:id", verifyToken, async (req, res) => {
   }
 });
 
-// Delete property
+
 router.delete("/:id", verifyToken, async (req, res) => {
   try {
     const propId = Number(req.params.id);

@@ -57,7 +57,7 @@ export default function ListProperty() {
 
       const files = formData.images || [];
       for (let i = 0; i < files.length; i++) {
-        fd.append("images", files[i]); // must match multer field name "images"
+        fd.append("images", files[i]);
       }
 
       const res = await fetch(`${BACKEND_URL}/api/property`, {
